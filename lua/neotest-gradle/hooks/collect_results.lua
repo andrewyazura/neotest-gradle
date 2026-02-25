@@ -46,10 +46,18 @@ local function find_position_for_test_case(tree, test_case_node)
   local class_name = test_case_node._attr.classname
 
   local candidate_ids = {
-    class_name .. '.' .. test_name,                    -- JUnit4: com.example.Test.method
-    class_name:gsub('%$', '.') .. '.' .. test_name     -- Jupiter: com.example.Test$Inner -> com.example.Test.Inner.method (nested classes)
+    class_name .. '.' .. test_name, -- JUnit4: com.example.Test.method
+    class_name:gsub('%$', '.') .. '.' .. test_name, -- Jupiter: com.example.Test$Inner -> com.example.Test.Inner.method (nested classes)
   }
-  
+
+  -- Fallback: match source class namespace by stripping "Test" suffix from classname.
+  -- This allows results from CompareJsonNodeTest to match the CompareJsonNode namespace
+  -- when running tests from a source file.
+  local source_class = class_name:match('^(.+)Test$')
+  if source_class then
+    table.insert(candidate_ids, source_class)
+  end
+
   for _, position in tree:iter() do
     if position then
       for _, candidate_id in ipairs(candidate_ids) do
@@ -118,7 +126,9 @@ return function(build_specfication, _, tree)
           local short_message = (failure_node or {}).message
           local error = failure_node and parse_error_from_failure_xml(failure_node, matched_position)
           local result = { status = status, short = short_message, errors = { error } }
-          results[matched_position.id] = result
+          if results[matched_position.id] == nil or status == STATUS_FAILED then
+            results[matched_position.id] = result
+          end
         end
       end
     end
