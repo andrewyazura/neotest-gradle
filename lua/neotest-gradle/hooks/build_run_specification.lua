@@ -1,5 +1,7 @@
 local lib = require('neotest.lib')
 local find_project_directory = require('neotest-gradle.hooks.find_project_directory')
+local resolve_test_file = require('neotest-gradle.hooks.resolve_test_file')
+local shared_utilities = require('neotest-gradle.hooks.shared_utilities')
 
 --- Fiends either an executable file named `gradlew` in any parent directory of
 --- the project or falls back to a binary called `gradle` that must be available
@@ -67,6 +69,24 @@ local function get_namespaces_of_tree(tree)
   return namespaces
 end
 
+--- Constructs the `--tests` filter for a source file by resolving its
+--- corresponding test file and deriving the fully-qualified test class name.
+---
+--- @param file_path string - absolute path to the source file
+--- @return string[] - list of strings for arguments, empty if no test file found
+local function get_source_file_test_arguments(file_path)
+  local test_path = resolve_test_file(file_path)
+  if not test_path then
+    return {}
+  end
+
+  local package_name = shared_utilities.get_package_name(test_path)
+  local class_name = test_path:match('([^/]+)%.%w+$')
+  local filter = package_name ~= '' and (package_name .. '.' .. class_name) or class_name
+
+  return { '--tests', "'" .. filter .. "'" }
+end
+
 --- Constructs the additional arguments for the test command to filter the
 --- correct tests that should run.
 --- Therefore it uses (and possibly repeats) the Gradle test command
@@ -81,6 +101,11 @@ end
 --- @param position table - see neotest.Position
 --- @return string[] - list of strings for arguments
 local function get_test_filter_arguments(tree, position)
+  local source_args = get_source_file_test_arguments(position.path)
+  if #source_args > 0 then
+    return source_args
+  end
+
   local arguments = {}
 
   if position.type == 'test' or position.type == 'namespace' then
