@@ -35,6 +35,7 @@ return function(path)
     local root = tree:data()
     root.path = path
     root.id = path
+    root.name = path:match('([^/]+)$')
   end
 
   return tree
