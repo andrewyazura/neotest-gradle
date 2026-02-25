@@ -112,23 +112,36 @@ end
 --- @return table<string, table> - see neotest.Result
 return function(build_specfication, _, tree)
   local results = {}
-  local position = tree:data()
   local results_directory = build_specfication.context.test_resuls_directory
   local juris_reports = parse_xml_files_from_directory(results_directory)
 
   for _, juris_report in pairs(juris_reports) do
     for _, test_suite_node in pairs(asList(juris_report.testsuite)) do
       for _, test_case_node in pairs(asList(test_suite_node.testcase)) do
+        local test_name = test_case_node._attr.name:gsub('%(.*%)$', '')
+        local class_name = test_case_node._attr.classname
         local matched_position = find_position_for_test_case(tree, test_case_node)
-        if matched_position ~= nil then
-          local failure_node = test_case_node.failure
-          local status = failure_node == nil and STATUS_PASSED or STATUS_FAILED
-          local short_message = (failure_node or {}).message
-          local error = failure_node and parse_error_from_failure_xml(failure_node, matched_position)
-          local result = { status = status, short = short_message, errors = { error } }
-          if results[matched_position.id] == nil or status == STATUS_FAILED then
-            results[matched_position.id] = result
-          end
+
+        local failure_node = test_case_node.failure
+        local status = failure_node == nil and STATUS_PASSED or STATUS_FAILED
+        local short_message = (failure_node or {}).message
+        local error = failure_node
+          and matched_position
+          and parse_error_from_failure_xml(failure_node, matched_position)
+        local result = { status = status, short = short_message, errors = { error } }
+
+        -- Emit for test method positions (test file)
+        local test_id = class_name .. '.' .. test_name
+        results[test_id] = result
+        local nested_id = class_name:gsub('%$', '.') .. '.' .. test_name
+        if nested_id ~= test_id then
+          results[nested_id] = result
+        end
+
+        -- Emit for source class namespace (source file, failure takes priority)
+        local source_class = class_name:match('^(.+)Test$')
+        if source_class and (results[source_class] == nil or status == STATUS_FAILED) then
+          results[source_class] = result
         end
       end
     end
