@@ -36,6 +36,14 @@ return function(path)
     root.path = path
     root.id = path
     root.name = path:match('([^/]+)$')
+
+    -- Clear ranges on child positions to prevent gutter indicators at
+    -- meaningless line numbers (the ranges are from the test file).
+    for _, position in tree:iter() do
+      if position ~= root then
+        position.range = nil
+      end
+    end
   end
 
   return tree
