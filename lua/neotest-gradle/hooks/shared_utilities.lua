@@ -7,7 +7,7 @@ local function get_package_name(file_path)
 
   for _, line in ipairs(lines) do
     -- Match package declaration (works for both Java and Kotlin)
-    local package_match = line:match('^%s*package%s+([%w%.]+)')
+    local package_match = line:match('^%s*package%s+([%w%._]+)')
     if package_match then
       return package_match
     end
